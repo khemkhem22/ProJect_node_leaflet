@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGis</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.9.1/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            font-size: 2rem;
+            font-weight: bold;
+            background-color: #007bff;
+            color: white;
+        }
+
+        .header img {
+            width: 50px; /* ขนาดโลโก้ */
+            height: auto;
+            margin-right: 10px;
+        }
+
+        .container {
+            margin-top: 20px;
+        }
+
+        .location {
+            text-align: center; /* จัดข้อความให้อยู่ตรงกลาง */
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        .box {
+        height: 150px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        font-size: 1.2rem;
+        border: 1px solid #dee2e6;
+        background-color: #f8f9fa;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px; /* เพิ่มระยะห่างระหว่างกล่อง */
+    }
+
+        .box i {
+            font-size: 2.5rem; /* ขนาดไอคอน */
+            margin-bottom: 10px;
+            color: #007bff;
+        }
+
+        .map-section {
+            margin-top: 20px;
+            height: 600px; /* ขนาดแผนที่ */
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none; /* เอาเส้นขอบออก */
+        }
+
+        .status {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            color: #dc3545; /* สีแดงสำหรับข้อความผิดพลาด */
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <img src="compass1.png" alt="Logo WebGis"> <!-- เปลี่ยนเป็นรูปโลโก้ของคุณ -->
+        WebGis
+    </div>
+
+    <div class="container">
+        <div class="location" id="location">ตำแหน่งของคุณ: </div> <!-- Element สำหรับแสดงชื่อที่ตำแหน่ง -->
+        
+        <div class="row">
+            <div class="col-md-3">
+                <div class="box" id="temperature-box">
+                    <i class="bi bi-thermometer"></i>
+                    อุณหภูมิ: <span id="user-temperature"></span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="box" id="rainfall-box">
+                    <i class="bi bi-cloud-rain"></i>
+                    น้ำฝน: <span id="user-rainfall"></span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="box" id="max-temp-box">
+                    <i class="bi bi-thermometer-high"></i>
+                    อุณหภูมิสูงสุด: <span id="user-max-temp"></span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="box" id="min-temp-box">
+                    <i class="bi bi-thermometer-low"></i>
+                    อุณหภูมิต่ำสุด: <span id="user-min-temp"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="location" id="banna-location">บ้านนา</div> <!-- Element สำหรับแสดงชื่อที่ตำแหน่งบ้านนา -->
+        
+        <div class="row">
+            <div class="col-md-3">
+                <div class="box" id="banna-temperature-box">
+                    <i class="bi bi-thermometer"></i>
+                    อุณหภูมิ: <span id="banna-temperature"></span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="box" id="banna-rainfall-box">
+                    <i class="bi bi-cloud-rain"></i>
+                    น้ำฝน: <span id="banna-rainfall"></span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="box" id="banna-max-temp-box">
+                    <i class="bi bi-thermometer-high"></i>
+                    อุณหภูมิสูงสุด: <span id="banna-max-temp"></span>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="box" id="banna-min-temp-box">
+                    <i class="bi bi-thermometer-low"></i>
+                    อุณหภูมิต่ำสุด: <span id="banna-min-temp"></span>
+                </div>
+            </div>
+        </div>
+        
+
+        <h2 class="text-center">แผนที่ บ้านนา</h2> <!-- ชื่อที่แสดงเหนือแผนที่ -->
+        <div class="map-section">
+            <iframe src="map.html"></iframe> <!-- แทนที่กล่องสำหรับแผนที่ด้วย iframe -->
+        </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        async function fetchWeatherData() {
+            // ข้อมูลสำหรับตำแหน่งของผู้ใช้
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const userLat = position.coords.latitude;
+                    const userLon = position.coords.longitude;
+
+                    try {
+                        const userResponse = await fetch(`/api/weather?lat=${userLat}&lon=${userLon}`); // ส่งพิกัดไปยัง API
+                        if (!userResponse.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        const userData = await userResponse.json();
+
+                        // แปลงอุณหภูมิจาก Kelvin เป็น Celsius สำหรับตำแหน่งของผู้ใช้
+                        document.getElementById('user-temperature').innerText = (userData.main.temp - 273.15).toFixed(2) + '°C';
+                        document.getElementById('user-rainfall').innerText = (userData.rain ? userData.rain['1h'] : 0) + ' mm';
+                        document.getElementById('user-max-temp').innerText = (userData.main.temp_max - 273.15).toFixed(2) + '°C';
+                        document.getElementById('user-min-temp').innerText = (userData.main.temp_min - 273.15).toFixed(2) + '°C';
+
+                        // อัปเดตชื่อสถานที่ให้ตรงกับตำแหน่งของผู้ใช้
+                        const locationResponse = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${userLat}&longitude=${userLon}&localityLanguage=th`);
+                        const locationData = await locationResponse.json();
+                        document.getElementById('location').innerText = `ตำแหน่งของคุณ: ${locationData.locality || "ไม่พบตำแหน่ง"}`;
+
+                    } catch (error) {
+                        console.error('Error fetching user weather data:', error);
+                    }
+                }, (error) => {
+                    console.error('Error getting user location:', error);
+                });
+            } else {
+                console.log('Geolocation is not supported by this browser.');
+            }
+
+            // ข้อมูลสำหรับบ้านนา
+            const bannaLocation = { name: "บ้านนา", lat: 16.345, lon: 100.121 };
+
+            try {
+                const bannaResponse = await fetch(`/api/weather?lat=${bannaLocation.lat}&lon=${bannaLocation.lon}`); // ส่งพิกัดไปยัง API
+                if (!bannaResponse.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const bannaData = await bannaResponse.json();
+
+                // แปลงอุณหภูมิจาก Kelvin เป็น Celsius สำหรับบ้านนา
+                document.getElementById('banna-temperature').innerText = (bannaData.main.temp - 273.15).toFixed(2) + '°C';
+                document.getElementById('banna-rainfall').innerText = (bannaData.rain ? bannaData.rain['1h'] : 0) + ' mm';
+                document.getElementById('banna-max-temp').innerText = (bannaData.main.temp_max - 273.15).toFixed(2) + '°C';
+                document.getElementById('banna-min-temp').innerText = (bannaData.main.temp_min - 273.15).toFixed(2) + '°C';
+
+            } catch (error) {
+                console.error('Error fetching Banna weather data:', error);
+            }
+        }
+
+        // เรียกใช้ฟังก์ชันเพื่อดึงข้อมูลเมื่อหน้าโหลด
+        window.onload = fetchWeatherData;
+
+    </script>
+</body>
+</html>

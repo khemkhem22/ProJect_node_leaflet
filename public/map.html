@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>การพยากรณ์อากาศและการวิเคราะห์</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap"
+    />
+    <!-- เพิ่มฟอนต์ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      #map {
+        height: 100vh; /* ทำให้แผนที่เต็มหน้าจอ */
+        width: 100%; /* ความกว้างของแผนที่ */
+      }
+      body {
+        font-family: "Roboto", sans-serif; /* ใช้ฟอนต์ Roboto */
+        margin: 0;
+        padding: 0;
+        background-color: #f8f9fa; /* สีพื้นหลัง */
+      }
+      .container {
+        position: absolute;
+        top: 0; /* เริ่มต้นจากด้านบน */
+        left: 0; /* เริ่มต้นจากด้านซ้าย */
+        width: 700px; /* ปรับความกว้างของแผงข้อมูล */
+        height: 100vh; /* ทำให้ความสูงเต็มจอ */
+        background: white;
+        border-radius: 5px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+        overflow-y: auto; /* เลื่อนแนวตั้งได้ */
+        padding: 15px;
+        display: none; /* ซ่อนโดยเริ่มต้น */
+        z-index: 1000; /* อยู่ด้านบน */
+      }
+      .close-button {
+        cursor: pointer;
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-size: 30px; /* ขนาดตัวอักษรของปุ่มกากบาท */
+        color: #dc3545; /* สีแดง */
+      }
+      h1 {
+        font-size: 26px; /* ขนาดตัวอักษรหัวข้อใหญ่ */
+      }
+      h2 {
+        font-size: 22px; /* ขนาดตัวอักษรหัวข้อใหญ่ขึ้น */
+        text-align: center;
+        margin: 15px 0; /* ระยะห่างด้านบนและด้านล่าง */
+      }
+      canvas {
+        max-width: 100%; /* ทำให้กราฟมีขนาดเต็ม */
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div class="container" id="infoPanel">
+      <span class="close-button" id="closeButton">&times;</span>
+      <!-- ปุ่มกากบาท -->
+      <h2>ข้อมูลพยากรณ์ 10 วัน กรมอุตุนิยมวิทยา</h2>
+      <table class="table table-bordered" id="forecast-table">
+        <thead>
+          <tr>
+            <th>วันที่</th>
+            <th>อุณหภูมิ (°C)</th>
+            <th>ปริมาณน้ำฝน (mm)</th>
+            <th>ความชื้น (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- ข้อมูลจะถูกเพิ่มที่นี่ -->
+        </tbody>
+      </table>
+      <h2>การวิเคราะห์ Api 10 วัน กรมอุตุนิยมวิทยา</h2>
+      <p id="analysis"></p>
+      <h2>การพยากรณ์ อุณหภูมิ น้ำฝน ความชื้น 10 วัน กรมอุตุนิยมวิทยา</h2>
+      <canvas id="weatherChart"></canvas>
+      <h2>การพยากรณ์อุณหภูมิสูงสุดและต่ำสุด 10 วัน กรมอุตุนิยมวิทยา</h2>
+      <canvas id="temperatureChart"></canvas
+      ><!-- กราฟอุณหภูมิสูงสุดและต่ำสุด -->
+      <h2>การพยากรณ์ปริมาณน้ำในแม่น้ำ 7 วัน Open MetepApi</h2>
+      <canvas id="riverDischargeChart"></canvas
+      ><!-- กราฟน้ำในแม่น้ำ -->
+      <h2>การพยากรณ์ปริมาณน้ำสูงสุดและต่ำสุด 7 วัน OpenMetepApi</h2>
+      <canvas id="riverDischargeMaxMinChart"></canvas>
+      <h2>
+        การเปรียบเทียบค่าเฉลี่ยและค่ากลางของปริมาณน้ำในแม่น้ำ 7 วัน OpenMeteoApi
+      </h2>
+      <canvas id="riverDischargeMeanMedianChart"></canvas>
+      <h2>เปอร์เซ็นต์ของปริมาณน้ำในแม่น้ำ 7 วัน OpenMeteoApi</h2>
+      <canvas id="riverDischargePercentageChart"></canvas>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+      // ตั้งค่าพิกัดใหม่สำหรับมาร์กเกอร์
+      const markerLat = 16.50802960910885; // ละติจูด
+      const markerLon = 100.16819415961902; // ลองจิจูด
+      const locationName = "บ้านนา, วชิรบารมี, พิจิตร"; // ชื่อสถานที่
+
+      // สร้างแผนที่
+      const map = L.map("map").setView([markerLat, markerLon], 13); // ตั้งค่าพิกัดใหม่
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+      });
+
+      // layerMap
+      var OpenStreetMap = L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 17,
+          attribution:
+            '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }
+      );
+
+      var Stadia_AlidadeSmoothDark = L.tileLayer(
+        "https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.{ext}",
+        {
+          maxZoom: 17,
+          attribution:
+            '&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          ext: "png",
+        }
+      ).addTo(map);
+
+      var OpenTopoMap = L.tileLayer(
+        "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 17,
+          attribution:
+            'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
+        }
+      );
+
+      var googleStreets = L.tileLayer(
+        "http://{s}.google.com/vt?lyrs=m&x={x}&y={y}&z={z}",
+        {
+          maxZoom: 20,
+          subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        }
+      );
+
+      var googleHybrid = L.tileLayer(
+        "http://{s}.google.com/vt?lyrs=s,h&x={x}&y={y}&z={z}",
+        {
+          maxZoom: 20,
+          subdomains: ["mt0", "mt1", "mt2", "mt3"],
+        }
+      );
+
+      // กำหนด baseMap ของคุณ
+      var baseMap = {
+        "Street Map": OpenStreetMap,
+        "Stadia Dark": Stadia_AlidadeSmoothDark,
+        "Topographic Map": OpenTopoMap,
+        "Google Streets": googleStreets,
+        "Google Hybrid": googleHybrid,
+      };
+
+      // ตัวควบคุมเลเยอร์
+      var controlLayers = L.control.layers(baseMap).addTo(map); // คำสั่งนี้จะทำให้ Layer Control เปิดค้างไว้
+      // เพิ่มเลเยอร์ WFS
+      var layersBanna = ["road_banna", "stream", "tambon_banna", "banna"];
+
+      layersBanna.forEach(function (layerName) {
+        addWFSLayer(layerName, controlLayers);
+      });
+
+      function addWFSLayer(layerName, controlLayers) {
+        var wfsUrl = `http://localhost:8080/geoserver/data_gis/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=data_gis:${layerName}&outputFormat=application/json`;
+
+        fetch(wfsUrl)
+          .then((response) => response.json())
+          .then((data) => {
+            var geoJsonLayer = L.geoJSON(data, {
+              style: function (feature) {
+                if (layerName === "road_banna") {
+                  return { color: "#FF3300  ", weight: 2 };
+                } else if (layerName === "banna") {
+                  return {
+                    color: "#FF33CC",
+                    weight: 2,
+                    opacity: 1,
+                    fillColor: "#FF99CC",
+                    fillOpacity: 0.4,
+                  };
+                }
+                return { color: "#33FF66", weight: 2, fillOpacity: 0.1 };
+              },
+              onEachFeature: function (feature, layer) {
+                if (feature.properties) {
+                  layer.bindPopup(
+                    Object.keys(feature.properties)
+                      .map((key) => `<b>${key}:</b> ${feature.properties[key]}`)
+                      .join("<br>")
+                  );
+                }
+              },
+            }).addTo(map);
+            controlLayers.addOverlay(geoJsonLayer, layerName);
+          });
+      }
+
+      // ฟังก์ชันสำหรับดึงข้อมูลพยากรณ์
+      async function fetchForecast() {
+        try {
+          const response = await fetch("/api/forecast"); // เรียก API
+          const data = await response.json(); // แปลงข้อมูลเป็น JSON
+
+          // ตรวจสอบและแสดงข้อมูลบนแผนที่
+          if (data && data.WeatherForecasts) {
+            const forecasts = data.WeatherForecasts[0].forecasts;
+            const labels = [];
+            const temperatures = [];
+            const rains = [];
+            const humidities = [];
+            const maxTemps = [];
+            const minTemps = [];
+
+            let totalRain = 0;
+            let maxTemp = -Infinity;
+            let minTemp = Infinity;
+            let totalHumidity = 0;
+
+            forecasts.forEach((forecast) => {
+              const { time, data: weatherData } = forecast; // ดึงข้อมูลเวลาและข้อมูลพยากรณ์
+              const rain = weatherData.rain; // ปริมาณฝน
+              const temperature = weatherData.tc; // อุณหภูมิ
+              const humidity = weatherData.rh; // ความชื้น
+
+              // เก็บข้อมูลเพื่อสร้างกราฟ
+              labels.push(new Date(time).toLocaleDateString());
+              temperatures.push(temperature);
+              rains.push(rain);
+              humidities.push(humidity);
+              maxTemps.push(Math.max(maxTemp, temperature)); // เก็บอุณหภูมิสูงสุด
+              minTemps.push(Math.min(minTemp, temperature)); // เก็บอุณหภูมิต่ำสุด
+
+              // วิเคราะห์ข้อมูล
+              totalRain += rain;
+              maxTemp = Math.max(maxTemp, temperature);
+              minTemp = Math.min(minTemp, temperature);
+              totalHumidity += humidity;
+            });
+
+            // คำนวณค่าเฉลี่ยความชื้น
+            const averageHumidity = totalHumidity / humidities.length;
+
+            // สร้างมาร์กเกอร์
+            const marker = L.marker([markerLat, markerLon]).addTo(map);
+            const popupContent = `
+                        <div>
+                            <strong>${locationName}</strong><br>
+                            อุณหภูมิ: ${temperatures[0]} °C<br>
+                            น้ำฝน: ${rains[0]} mm<br>
+                            ความชื้น: ${humidities[0]} %<br>
+                            <button id="toggleInfoPanel">ดูข้อมูลเพิ่มเติม</button>
+                        </div>
+                    `;
+
+            // สร้างป๊อปอัป
+            marker.bindPopup(popupContent);
+            marker.openPopup(); // เปิดป๊อปอัปทันที
+
+            // ฟังก์ชันสำหรับการเปิดแผงข้อมูล
+            const toggleInfoPanel = () => {
+              const infoPanel = document.getElementById("infoPanel");
+              if (
+                infoPanel.style.display === "none" ||
+                infoPanel.style.display === ""
+              ) {
+                infoPanel.style.display = "block"; // แสดงแผงข้อมูล
+                populateForecastTable(
+                  forecasts,
+                  totalRain,
+                  maxTemp,
+                  minTemp,
+                  averageHumidity
+                ); // แสดงข้อมูลในตาราง
+                createChart(labels, temperatures, rains, humidities); // สร้างกราฟ
+                createTemperatureChart(labels, maxTemps, minTemps); // สร้างกราฟแท่งสำหรับอุณหภูมิสูงสุดและต่ำสุด
+                fetchMeteoData(); // เรียกฟังก์ชันเพื่อดึงข้อมูลจาก API Meteo
+              } else {
+                infoPanel.style.display = "none"; // ซ่อนแผงข้อมูล
+              }
+            };
+
+            // ทำให้ปุ่ม "ดูข้อมูลเพิ่มเติม" ทำงานได้
+            document.getElementById("toggleInfoPanel").onclick =
+              toggleInfoPanel;
+
+            // เปิดแผงข้อมูลโดยตรงเมื่อโหลดหน้าเว็บ
+            // toggleInfoPanel(); // เรียกใช้งานฟังก์ชันโดยตรง
+
+            // ทำให้ป๊อปอัปทำงานเมื่อคลิกมาร์กเกอร์
+            marker.on("popupopen", () => {
+              document.getElementById("toggleInfoPanel").onclick =
+                toggleInfoPanel;
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching forecast:", error);
+        }
+      }
+
+      // ฟังก์ชันสำหรับเติมข้อมูลลงในตาราง
+      function populateForecastTable(
+        forecasts,
+        totalRain,
+        maxTemp,
+        minTemp,
+        averageHumidity
+      ) {
+        const tableBody = document
+          .getElementById("forecast-table")
+          .getElementsByTagName("tbody")[0];
+        tableBody.innerHTML = ""; // เคลียร์ข้อมูลเดิม
+
+        forecasts.forEach((forecast) => {
+          const { time, data: weatherData } = forecast;
+          const rain = weatherData.rain; // ปริมาณฝน
+          const temperature = weatherData.tc; // อุณหภูมิ
+          const humidity = weatherData.rh; // ความชื้น
+
+          // เพิ่มข้อมูลลงในตาราง
+          const row = `<tr>
+                    <td>${new Date(time).toLocaleDateString()}</td>
+                    <td>${temperature} °C</td>
+                    <td>${rain} mm</td>
+                    <td>${humidity} %</td>
+                </tr>`;
+          tableBody.innerHTML += row;
+        });
+
+        // แสดงการวิเคราะห์
+        document.getElementById("analysis").innerHTML = `
+                ปริมาณน้ำฝนรวม: ${totalRain} mm<br>
+                อุณหภูมิสูงสุด: ${maxTemp} °C<br>
+                อุณหภูมิต่ำสุด: ${minTemp} °C<br>
+                ความชื้นเฉลี่ย: ${averageHumidity.toFixed(2)} %
+            `;
+      }
+
+      // ฟังก์ชันสำหรับสร้างกราฟอุณหภูมิสูงสุดและต่ำสุด (กราฟแท่ง)
+      function createTemperatureChart(labels, maxTemps, minTemps) {
+        const ctx = document
+          .getElementById("temperatureChart")
+          .getContext("2d");
+        const temperatureChart = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "อุณหภูมิสูงสุด (°C)",
+                data: maxTemps,
+                backgroundColor: "rgba(255, 99, 132, 0.6)",
+                borderColor: "rgba(255, 99, 132, 1)",
+                borderWidth: 1,
+              },
+              {
+                label: "อุณหภูมิต่ำสุด (°C)",
+                data: minTemps,
+                backgroundColor: "rgba(54, 162, 235, 0.6)",
+                borderColor: "rgba(54, 162, 235, 1)",
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true,
+              },
+            },
+            // maintainAspectRatio: false, // ปิดการรักษาสัดส่วนเพื่อให้ขนาดเต็มตาม container
+            scales: {
+              y: {
+                title: {
+                  display: true,
+                  text: "อุณหภูมิ (°C)",
+                },
+              },
+              // x: {
+              //     title: {
+              //         display: true,
+              //         text: 'วันที่'
+              //     }
+              // }
+            },
+          },
+        });
+      }
+
+      // ฟังก์ชันสำหรับสร้างกราฟการพยากรณ์
+      function createChart(labels, temperatures, rains, humidities) {
+        const ctx = document.getElementById("weatherChart").getContext("2d");
+        const weatherChart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "อุณหภูมิ (°C)",
+                data: temperatures,
+                borderColor: "rgba(255, 99, 132, 1)",
+                fill: false,
+              },
+              {
+                label: "น้ำฝน (mm)",
+                data: rains,
+                borderColor: "rgba(54, 162, 235, 1)",
+                fill: false,
+              },
+              {
+                label: "ความชื้น (%)",
+                data: humidities,
+                borderColor: "rgba(75, 192, 192, 1)",
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true,
+              },
+            },
+            // maintainAspectRatio: false, // ปิดการรักษาสัดส่วนเพื่อให้ขนาดเต็มตาม container
+            scales: {
+              y: {
+                title: {
+                  display: true,
+                  text: "ค่า",
+                },
+              },
+              // x: {
+              //     title: {
+              //         display: true,
+              //         text: 'วันที่'
+              //     }
+              // }
+            },
+          },
+        });
+      }
+
+      // ฟังก์ชันสำหรับดึงข้อมูลจาก Open Meteo API
+      async function fetchMeteoData() {
+        try {
+          const response = await fetch("/api/flood"); // เปลี่ยน URL ให้เป็น endpoint ของคุณ
+          const data = await response.json(); // แปลงข้อมูลเป็น JSON
+
+          // ตรวจสอบและแสดงข้อมูลในกราฟ
+          if (data && data.daily) {
+            const riverDischarge = data.daily.river_discharge; // ปริมาณน้ำในแม่น้ำ
+            const maxDischarge = data.daily.river_discharge_max; // ปริมาณน้ำสูงสุด
+            const minDischarge = data.daily.river_discharge_min; // ปริมาณน้ำต่ำสุด
+            const meanDischarge = data.daily.river_discharge_mean; // ค่าเฉลี่ย
+            const medianDischarge = data.daily.river_discharge_median; // ค่ากลาง
+            const labels = data.daily.time.map((time) =>
+              new Date(time).toLocaleDateString()
+            );
+
+            // สร้างกราฟสำหรับปริมาณน้ำในแม่น้ำ
+            createRiverDischargeChart(labels, riverDischarge);
+            // สร้างกราฟสำหรับปริมาณน้ำสูงสุดและต่ำสุด
+            createRiverDischargeMaxMinChart(labels, maxDischarge, minDischarge);
+            // สร้างกราฟการเปรียบเทียบค่าเฉลี่ยและค่ากลาง
+            createRiverDischargeMeanMedianChart(
+              labels,
+              meanDischarge,
+              medianDischarge
+            );
+            createRiverDischargePercentageChart(labels, riverDischarge);
+            // สร้างกราฟการวิเคราะห์แนวโน้ม
+          }
+        } catch (error) {
+          console.error("Error fetching Meteo data:", error);
+        }
+      }
+
+      // ฟังก์ชันสำหรับสร้างกราฟการไหลของแม่น้ำ
+      function createRiverDischargeChart(labels, riverDischarge) {
+        const ctx = document
+          .getElementById("riverDischargeChart")
+          .getContext("2d");
+        const riverDischargeChart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "ปริมาณน้ำในแม่น้ำ (m³/s)",
+                data: riverDischarge,
+                borderColor: "rgba(75, 192, 192, 1)",
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true,
+              },
+            },
+            // maintainAspectRatio: false, // ปิดการรักษาสัดส่วนเพื่อให้ขนาดเต็มตาม container
+            scales: {
+              y: {
+                title: {
+                  display: true,
+                  text: "ปริมาณน้ำ (m³/s)",
+                },
+              },
+            },
+          },
+        });
+      }
+
+      // ฟังก์ชันสำหรับสร้างกราฟปริมาณน้ำสูงสุดและต่ำสุด
+      function createRiverDischargeMaxMinChart(
+        labels,
+        maxDischarge,
+        minDischarge
+      ) {
+        const ctx = document
+          .getElementById("riverDischargeMaxMinChart")
+          .getContext("2d");
+        const riverDischargeMaxMinChart = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "ปริมาณน้ำสูงสุด (m³/s)",
+                data: maxDischarge,
+                backgroundColor: "#9999FF",
+                borderColor: "#9966FF",
+                borderWidth: 1,
+              },
+              {
+                label: "ปริมาณน้ำต่ำสุด (m³/s)",
+                data: minDischarge,
+                backgroundColor: "#FFFF66",
+                borderColor: "#FFFF33",
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true,
+              },
+            },
+            // maintainAspectRatio: false, // ปิดการรักษาสัดส่วนเพื่อให้ขนาดเต็มตาม container
+            scales: {
+              y: {
+                title: {
+                  display: true,
+                  text: "ปริมาณน้ำ (m³/s)",
+                },
+              },
+            },
+          },
+        });
+      }
+
+      // ฟังก์ชันสำหรับสร้างกราฟการเปรียบเทียบค่าเฉลี่ยและค่ากลาง
+      function createRiverDischargeMeanMedianChart(
+        labels,
+        meanDischarge,
+        medianDischarge
+      ) {
+        const ctx = document
+          .getElementById("riverDischargeMeanMedianChart")
+          .getContext("2d");
+        const riverDischargeMeanMedianChart = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "ค่าเฉลี่ย (m³/s)",
+                data: meanDischarge,
+                backgroundColor: "rgba(255, 159, 64, 0.6)",
+                borderColor: "rgba(255, 159, 64, 1)",
+                borderWidth: 1,
+              },
+              {
+                label: "ค่ากลาง (m³/s)",
+                data: medianDischarge,
+                backgroundColor: "rgba(75, 192, 192, 0.6)",
+                borderColor: "rgba(75, 192, 192, 1)",
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true,
+              },
+            },
+            // maintainAspectRatio: false, // ปิดการรักษาสัดส่วนเพื่อให้ขนาดเต็มตาม container
+            scales: {
+              y: {
+                title: {
+                  display: true,
+                  text: "ปริมาณน้ำ (m³/s)",
+                },
+              },
+            },
+          },
+        });
+      }
+
+      function createRiverDischargePercentageChart(labels, riverDischarge) {
+        const total = riverDischarge.reduce((acc, val) => acc + val, 0);
+        const percentageData = riverDischarge.map(
+          (value) => (value / total) * 100
+        );
+
+        const ctx = document
+          .getElementById("riverDischargePercentageChart")
+          .getContext("2d");
+        const riverDischargePercentageChart = new Chart(ctx, {
+          type: "pie",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: "เปอร์เซ็นต์ปริมาณน้ำในแม่น้ำ",
+                data: percentageData,
+                backgroundColor: [
+                  "rgba(255, 99, 132, 0.6)",
+                  "rgba(54, 162, 235, 0.6)",
+                  "rgba(255, 206, 86, 0.6)",
+                  "rgba(75, 192, 192, 0.6)",
+                  "rgba(153, 102, 255, 0.6)",
+                  "rgba(255, 159, 64, 0.6)",
+                  "rgba(255, 0, 0, 0.6)",
+                ],
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                display: true,
+              },
+            },
+            maintainAspectRatio: false, // ปิดการรักษาสัดส่วนเพื่อให้ขนาดเต็มตาม container
+          },
+        });
+      }
+
+      // เพิ่มฟังก์ชันสำหรับปิดแผงข้อมูล
+      document.getElementById("closeButton").onclick = () => {
+        document.getElementById("infoPanel").style.display = "none"; // ซ่อนแผงข้อมูล
+      };
+
+      fetchForecast(); // เรียกฟังก์ชัน
+    </script>
+  </body>
+</html>
