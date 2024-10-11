@@ -32,12 +32,21 @@ app.get('/api/forecast', async (req, res) => {
 
 // เสิร์ฟหน้า index.html เมื่อเข้าถึง root
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'map.html'));
+    res.sendFile(path.join(__dirname, 'public', 'index_map_leaflet.html'));
 });
 
 // เสิร์ฟหน้า index_map.html เมื่อเข้าถึง /map
 app.get('/map', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index_map.html'));
+});
+
+// เสิร์ฟหน้า map.html เมื่อเข้าถึง /webmap
+app.get('/webmap', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'map.html'));
+});
+
+app.get('/mapdata', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'map_node.html'));
 });
 
 // เพิ่ม endpoint สำหรับ OpenWeatherMap API
@@ -71,6 +80,35 @@ app.get('/api/flood', async (req, res) => {
     }
 });
 
+// เพิ่ม endpoint สำหรับ GeoServer data
+app.get('/api/geoserver', async (req, res) => {
+    const layerName = req.query.layerName; // ดึงชื่อเลเยอร์จาก query
+    if (!layerName) {
+        return res.status(400).json({ error: 'Layer name is required' }); // เช็คว่ามีการส่งชื่อเลเยอร์มาหรือไม่
+    }
+
+    const geoserverUrl = `http://localhost:8080/geoserver/data_gis/wfs`; // URL ของ GeoServer WFS
+    const params = {
+        service: 'WFS',
+        version: '1.0.0',
+        request: 'GetFeature',
+        typeName: `data_gis:${layerName}`, // ใช้ชื่อเลเยอร์จาก query
+        outputFormat: 'application/json'
+    };
+
+    try {
+        const response = await axios.get(geoserverUrl, { params });
+        
+        if (response.status === 200) {
+            res.json(response.data); // ส่งข้อมูล GeoServer เป็น JSON
+        } else {
+            res.status(response.status).json({ error: 'Failed to fetch GeoServer data', details: response.data });
+        }
+    } catch (error) {
+        console.error('Error fetching GeoServer data:', error.message);
+        res.status(500).json({ error: 'Failed to fetch GeoServer data', details: error.message });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
