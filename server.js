@@ -32,21 +32,12 @@ app.get('/api/forecast', async (req, res) => {
 
 // เสิร์ฟหน้า index.html เมื่อเข้าถึง root
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index_map_leaflet.html'));
-});
-
-// เสิร์ฟหน้า index_map.html เมื่อเข้าถึง /map
-app.get('/map', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index_map.html'));
 });
 
 // เสิร์ฟหน้า map.html เมื่อเข้าถึง /webmap
-app.get('/webmap', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'map.html'));
-});
-
 app.get('/mapdata', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'map_node.html'));
+    res.sendFile(path.join(__dirname, 'public', 'map.html'));
 });
 
 // เพิ่ม endpoint สำหรับ OpenWeatherMap API
